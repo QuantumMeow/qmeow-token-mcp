@@ -95,15 +95,8 @@ def get_project_overview() -> str:
 
 if __name__ == "__main__":
     import os
-
-    # If PORT is defined (meaning we are on Render), run as SSE
-    if "PORT" in os.environ:
-        port = int(os.environ.get("PORT", 8000))
-        mcp.run(
-            transport="sse",
-            host="0.0.0.0",
-            port=port
-        )
-    # Otherwise, default to local stdio for Claude Desktop
-    else:
-        mcp.run(transport="stdio")
+    mcp.run(
+        transport="streamable-http",
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 8000)),
+    )
