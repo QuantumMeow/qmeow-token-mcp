@@ -87,13 +87,16 @@ def get_project_overview() -> str:
 
 
 if __name__ == "__main__":
-    # Run the server over standard input/output (stdio) for local integration
-    mcp.run(transport="stdio")
-
-# Remote (Render):
     import os
-    mcp.run(
-        transport="streamable-http",
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 8000)),
-    )
+
+    # If PORT is defined (meaning we are on Render), run as SSE
+    if "PORT" in os.environ:
+        port = int(os.environ.get("PORT", 8000))
+        mcp.run(
+            transport="sse",
+            host="0.0.0.0",
+            port=port
+        )
+    # Otherwise, default to local stdio for Claude Desktop
+    else:
+        mcp.run(transport="stdio")
