@@ -43,12 +43,19 @@ async def get_token_market_data() -> str:
 
             # Grab the primary trading pair (server-side payload trimming applied)
             pair = pairs[0]
+            price_change = pair.get("priceChange", {})
 
             result = {
                 "token": "Quantum Meow",
                 "symbol": "QMEOW",
                 "mint": TOKEN_MINT,
                 "price_usd": pair.get("priceUsd"),
+                "price_change_percent": {
+                    "m5": price_change.get("m5"),
+                    "h1": price_change.get("h1"),
+                    "h6": price_change.get("h6"), # DexScreener uses 6h instead of 4h
+                    "h24": price_change.get("h24")
+                },
                 "volume_24h_usd": pair.get("volume", {}).get("h24"),
                 "liquidity_usd": pair.get("liquidity", {}).get("usd"),
                 "dex": pair.get("dexId"),
