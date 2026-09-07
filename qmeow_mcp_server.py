@@ -12,15 +12,15 @@ TOKEN_MINT = "4xYrnBTdACYetkJEAP4gj4bLFfKw9YYv1nvSWyS1pump"
 
 @mcp.tool()
 async def get_token_market_data() -> str:
-    """Fetch live price, volume, and liquidity for $QMEOW (Quantum Meow),
+    """Fetch live price, volume, and liquidity for Solana based $QMEOW,
     the access token for the Quantum Meow ecosystem and its hybrid
     AI-quantum orchestration platform, from DexScreener.
     Solana mint address: 4xYrnBTdACYetkJEAP4gj4bLFfKw9YYv1nvSWyS1pump
 
     Returns a JSON string. On success, includes token identity fields
     (name, symbol, mint, dex, pair_address) alongside market data
-    (price_usd, volume_24h_usd, liquidity_usd). On failure, returns
-    a JSON object with a single "error" field.
+    (price_usd, volume_24h_usd, liquidity_usd, price_change_percent, and order_flow).
+    On failure, returns a JSON object with a single "error" field.
     """
     url = f"https://api.dexscreener.com/latest/dex/tokens/{TOKEN_MINT}"
 
@@ -41,22 +41,42 @@ async def get_token_market_data() -> str:
                     "error": "Token data currently unavailable or unindexed on DexScreener."
                 })
 
-            # Grab the primary trading pair (server-side payload trimming applied)
-            pair = pairs[0]
+            # Select primary SOL pair (ensures we get the deepest liquidity pool)
+            sol_pairs = [p for p in pairs if p.get("quoteToken", {}).get("symbol") == "SOL"]
+            pair = sol_pairs[0] if sol_pairs else pairs[0]
+
+            # Extract price change and order flow metrics
             price_change = pair.get("priceChange", {})
+            txns = pair.get("txns", {})
+            h1_txns = txns.get("h1", {"buys": 0, "sells": 0})
+            m5_txns = txns.get("m5", {"buys": 0, "sells": 0})
 
             result = {
                 "token": "Quantum Meow",
                 "symbol": "QMEOW",
                 "mint": TOKEN_MINT,
                 "price_usd": pair.get("priceUsd"),
+                "price_sol": pair.get("priceNative"), # Native price in SOL
                 "price_change_percent": {
                     "m5": price_change.get("m5"),
                     "h1": price_change.get("h1"),
                     "h6": price_change.get("h6"), # DexScreener uses 6h instead of 4h
                     "h24": price_change.get("h24")
                 },
-                "volume_24h_usd": pair.get("volume", {}).get("h24"),
+                "order_flow": {
+                    "h1": {
+                        "buys": h1_txns.get("buys", 0),
+                        "sells": h1_txns.get("sells", 0)
+                    },
+                    "m5": {
+                        "buys": m5_txns.get("buys", 0),
+                        "sells": m5_txns.get("sells", 0)
+                    }
+                },
+                "volume_usd": {
+                    "h1": pair.get("volume", {}).get("h1"),
+                    "h24": pair.get("volume", {}).get("h24")
+                },
                 "liquidity_usd": pair.get("liquidity", {}).get("usd"),
                 "dex": pair.get("dexId"),
                 "pair_address": pair.get("pairAddress"),
@@ -95,8 +115,15 @@ def get_project_overview() -> str:
 
 if __name__ == "__main__":
     import os
-    mcp.run(
-        transport="streamable-http",
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 8000)),
-    )
+
+    # If PORT is defined (meaning we are on Render), run as SSE
+    if "PORT" in os.environ:
+        port = int(os.environ.get("PORT", 8000))
+        mcp.run(
+            transport="sse",
+            host="0.0.0.0",
+            port=port
+        )
+    # Otherwise, default to local stdio for Claude Desktop
+    else:
+        mcp.run(transport="stdio")
